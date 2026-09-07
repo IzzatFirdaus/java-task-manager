@@ -1,23 +1,14 @@
-import model.Task;
-import service.TaskManager;
+/**
+ * Application entry point. Wires the REPL, service, repository, and helpers.
+ *
+ * <p>Intentionally thin — all decisions live in the layers below.
+ */
+public final class App {
+    private App() {}
 
-public class App {
     public static void main(String[] args) {
-        TaskManager manager = new TaskManager();
-
-        manager.addTask(new Task("1", "Setup Java JDK & VS Code"));
-        manager.addTask(new Task("2", "Build Java OOP Portfolio Repository"));
-
-        System.out.println("--- Task List ---");
-        for (Task t : manager.getTasks()) {
-            System.out.println(t);
-        }
-
-        manager.markTaskCompleted("1");
-
-        System.out.println("\n--- Updated Task List ---");
-        for (Task t : manager.getTasks()) {
-            System.out.println(t);
-        }
+        // STEP_7_IMPLEMENT: construct FileTaskRepository, seed IdGenerator from existing tasks,
+        // build TaskManager, then hand off to CommandLineInterface.run().
+        throw new UnsupportedOperationException("App entry point not yet implemented");
     }
 }
