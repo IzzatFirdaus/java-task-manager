@@ -1,6 +1,6 @@
 package model;
 
-import exception.InvalidTaskException;
+import exception.TaskException;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -16,11 +16,34 @@ public class Task {
     private boolean completed;
     private final Instant createdAt;
 
-    public Task(String id, String title, String description, Priority priority) throws InvalidTaskException {
-        if (id == null || id.isBlank()) throw new InvalidTaskException("id must not be blank.");
-        if (title == null || title.isBlank()) throw new InvalidTaskException("title must not be blank.");
-        // STEP_7_IMPLEMENT: trim + length-check title (1..120), description (≤500).
-        throw new UnsupportedOperationException("Task constructor not yet implemented");
+    /**
+     * Creates a new task (sets {@link #createdAt} to now).
+     */
+    public Task(String id, String title, String description, Priority priority) throws TaskException {
+        this(id, title, description, priority, Instant.now());
+    }
+
+    /**
+     * Full constructor that accepts an explicit {@code createdAt}.
+     * Used by the persistence layer when restoring tasks from disk.
+     */
+    public Task(String id, String title, String description, Priority priority, Instant createdAt) throws TaskException {
+        if (id == null || id.isBlank()) throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "id must not be blank.");
+        if (title == null || title.isBlank()) throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "title must not be blank.");
+        String trimmedTitle = title.trim();
+        if (trimmedTitle.length() > 120) {
+            throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "title must be 120 characters or fewer.");
+        }
+        String trimmedDesc = (description != null) ? description.trim() : "";
+        if (trimmedDesc.length() > 500) {
+            throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "description must be 500 characters or fewer.");
+        }
+        this.id = id.trim();
+        this.title = trimmedTitle;
+        this.description = trimmedDesc;
+        this.priority = (priority != null) ? priority : Priority.MEDIUM;
+        this.completed = false;
+        this.createdAt = (createdAt != null) ? createdAt : Instant.now();
     }
 
     public String getId() { return id; }
@@ -30,14 +53,23 @@ public class Task {
     public boolean isCompleted() { return completed; }
     public Instant getCreatedAt() { return createdAt; }
 
-    public void setTitle(String title) throws InvalidTaskException {
-        // STEP_7_IMPLEMENT: validate, then assign.
-        throw new UnsupportedOperationException("setTitle not yet implemented");
+    public void setTitle(String title) throws TaskException {
+        if (title == null || title.isBlank()) {
+            throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "title must not be blank.");
+        }
+        String trimmed = title.trim();
+        if (trimmed.length() > 120) {
+            throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "title must be 120 characters or fewer.");
+        }
+        this.title = trimmed;
     }
 
-    public void setDescription(String description) throws InvalidTaskException {
-        // STEP_7_IMPLEMENT: validate, then assign.
-        throw new UnsupportedOperationException("setDescription not yet implemented");
+    public void setDescription(String description) throws TaskException {
+        String trimmed = (description != null) ? description.trim() : "";
+        if (trimmed.length() > 500) {
+            throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "description must be 500 characters or fewer.");
+        }
+        this.description = trimmed;
     }
 
     public void setPriority(Priority priority) {
@@ -50,7 +82,8 @@ public class Task {
 
     @Override
     public String toString() {
-        // STEP_7_IMPLEMENT: format as [X] id: title (priority).
-        throw new UnsupportedOperationException("Task.toString not yet implemented");
+        String status = completed ? "X" : " ";
+        return "[" + status + "] " + id + ": " + title + " (" + priority + ")"
+                + (description.isEmpty() ? "" : " — " + description);
     }
 }
