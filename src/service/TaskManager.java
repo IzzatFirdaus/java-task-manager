@@ -1,72 +1,144 @@
 package service;
 
-import exception.DuplicateTaskException;
-import exception.InvalidTaskException;
-import exception.TaskNotFoundException;
+import exception.TaskException;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import model.Priority;
 import model.Task;
 import persistence.TaskRepository;
-import util.IdGenerator;
 
 /**
  * Domain layer. Pure business logic; no I/O.
+ *
+ * <p>All mutating operations persist to the repository after modifying
+ * in-memory state. The constructor loads existing tasks from the
+ * repository and seeds the ID generator from the highest existing id.
  */
-@SuppressWarnings("unused") // fields/methods are wired during the implementation phase
 public class TaskManager {
     private final Map<String, Task> tasks = new LinkedHashMap<>();
     private final TaskRepository repository;
-    private final IdGenerator ids;
+    private final AtomicInteger nextId;
 
-    public TaskManager(TaskRepository repository, IdGenerator ids) {
+    public TaskManager(TaskRepository repository) {
         this.repository = repository;
-        this.ids = ids;
-        // STEP_7_IMPLEMENT: load existing tasks, seed ids from max(existing id) + 1.
+        this.nextId = new AtomicInteger(1);
+        loadFromRepository();
     }
 
-    public void addTask(Task task) throws DuplicateTaskException, InvalidTaskException {
-        // STEP_7_IMPLEMENT: reject duplicate id, persist.
-        throw new UnsupportedOperationException("addTask not yet implemented");
+    // ---------------------------------------------------------------
+    // Public API
+    // ---------------------------------------------------------------
+
+    public void addTask(Task task) throws TaskException {
+        if (task == null) throw new TaskException(TaskException.ErrorCode.INVALID_TASK, "task must not be null.");
+        if (tasks.containsKey(task.getId())) {
+            throw new TaskException(TaskException.ErrorCode.DUPLICATE_TASK, "Task " + task.getId() + " already exists.");
+        }
+        tasks.put(task.getId(), task);
+        persist();
     }
 
-    public void completeTask(String id) throws TaskNotFoundException {
-        // STEP_7_IMPLEMENT: find, mark completed, persist.
-        throw new UnsupportedOperationException("completeTask not yet implemented");
+    public void completeTask(String id) throws TaskException {
+        Task task = findOrThrow(id);
+        task.setCompleted(true);
+        persist();
     }
 
-    public void uncompleteTask(String id) throws TaskNotFoundException {
-        // STEP_7_IMPLEMENT: find, mark pending, persist.
-        throw new UnsupportedOperationException("uncompleteTask not yet implemented");
+    public void uncompleteTask(String id) throws TaskException {
+        Task task = findOrThrow(id);
+        task.setCompleted(false);
+        persist();
     }
 
     public void updateTask(String id, String title, String description, Priority priority)
-            throws TaskNotFoundException, InvalidTaskException {
-        // STEP_7_IMPLEMENT: find, mutate, persist.
-        throw new UnsupportedOperationException("updateTask not yet implemented");
+            throws TaskException {
+        Task task = findOrThrow(id);
+        if (title != null && !title.isBlank()) {
+            task.setTitle(title);
+        }
+        // description: null/blank means "leave unchanged"
+        if (description != null && !description.isBlank()) {
+            task.setDescription(description);
+        } else if (description != null && description.isBlank()) {
+            // Explicit blank means "clear description"
+            task.setDescription("");
+        }
+        if (priority != null) {
+            task.setPriority(priority);
+        }
+        persist();
     }
 
-    public void deleteTask(String id) throws TaskNotFoundException {
-        // STEP_7_IMPLEMENT: find, remove, persist.
-        throw new UnsupportedOperationException("deleteTask not yet implemented");
+    public void deleteTask(String id) throws TaskException {
+        if (!tasks.containsKey(id)) {
+            throw new TaskException(TaskException.ErrorCode.TASK_NOT_FOUND, "Task " + id + " not found.");
+        }
+        tasks.remove(id);
+        persist();
     }
 
     public Optional<Task> findTask(String id) {
-        // STEP_7_IMPLEMENT: return Optional.ofNullable(tasks.get(id)).
-        throw new UnsupportedOperationException("findTask not yet implemented");
+        return Optional.ofNullable(tasks.get(id));
     }
 
     public List<Task> listTasks(Predicate<Task> filter, Comparator<Task> sort) {
-        // STEP_7_IMPLEMENT: filtered+sorted view of tasks.values().
-        throw new UnsupportedOperationException("listTasks not yet implemented");
+        return tasks.values().stream()
+                .filter(filter)
+                .sorted(sort)
+                .collect(Collectors.toList());
     }
 
     public String nextId() {
-        // STEP_7_IMPLEMENT: delegate to IdGenerator.
-        throw new UnsupportedOperationException("nextId not yet implemented");
+        return String.valueOf(nextId.getAndIncrement());
+    }
+
+    /** Returns an unmodifiable view of all tasks (for iteration). */
+    public List<Task> tasks() {
+        return List.copyOf(tasks.values());
+    }
+
+    // ---------------------------------------------------------------
+    // Internal helpers
+    // ---------------------------------------------------------------
+
+    private void loadFromRepository() {
+        try {
+            List<Task> loaded = repository.load();
+            for (Task t : loaded) {
+                tasks.put(t.getId(), t);
+            }
+            int maxId = loaded.stream()
+                    .mapToInt(t -> {
+                        try { return Integer.parseInt(t.getId()); }
+                        catch (NumberFormatException e) { return 0; }
+                    })
+                    .max()
+                    .orElse(0);
+            nextId.set(maxId + 1);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load tasks from storage", e);
+        }
+    }
+
+    private void persist() {
+        try {
+            repository.save(new ArrayList<>(tasks.values()));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save tasks to storage", e);
+        }
+    }
+
+    private Task findOrThrow(String id) throws TaskException {
+        Task task = tasks.get(id);
+        if (task == null) throw new TaskException(TaskException.ErrorCode.TASK_NOT_FOUND, "Task " + id + " not found.");
+        return task;
     }
 }
