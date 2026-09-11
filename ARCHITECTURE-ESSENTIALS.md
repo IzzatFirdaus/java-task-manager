@@ -5,12 +5,13 @@
 ## Non-Negotiable Rules
 1. `model.Task.id` and `model.Task.createdAt` are immutable and unique within a `TaskManager` instance.
 2. `service.TaskManager` performs no I/O. All reads and writes go through `TaskRepository`.
-3. `cli` is the only package allowed to touch `System.in` / `System.out`. Domain layers stay silent.
+3. `cli` is the only package allowed to touch `System.in` / `System.out`. Domain layers stay silent. `api` may write to stderr for verbose logging.
 4. Domain operations throw checked exceptions (`TaskNotFoundException`, `DuplicateTaskException`, `InvalidTaskException`). The CLI catches and prints; never swallow silently.
 5. Storage file is `data/tasks.json`. Writes are atomic: serialize to `.tmp`, then `Files.move(ATOMIC_MOVE, REPLACE_EXISTING)`.
 6. No third-party runtime dependencies. JDK 17+ only.
 7. Hand-rolled JSON only — do not pull in Jackson or Gson.
 8. Compile clean under `javac -Xlint:all`.
+9. `api` depends on `service` and `model`; never on `cli`.
 
 ## Core Data Structures
 - **`Task`** — immutable `id`, `createdAt`; mutable `title`, `description`, `priority`, `completed`.

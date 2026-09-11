@@ -8,7 +8,7 @@
 3. **Never introduce runtime dependencies** without an explicit user request. The project is dependency-free by design (`PRD.md` NF1).
 4. **Never swallow exceptions silently.** Catch only at the CLI boundary; otherwise rethrow or log.
 5. **Never call `System.out` / `System.in` outside `cli/` and `util/`.** All other layers must stay silent.
-6. **Never bypass the layering rule.** `service` depends on `model` and `persistence`; `cli` depends on `service`, `model`, `util`, `exception`. Reverse dependencies are forbidden.
+6. **Never bypass the layering rule.** `service` depends on `model` and `persistence`; `cli` depends on `service`, `model`, `util`, `exception`. Reverse dependencies are forbidden. `api` depends on `service` and `model` but NOT on `cli`.
 
 ## 2. Coding Standards
 - Java 17 features permitted: records, sealed types, switch expressions, `var` in local scope, `List.of`, `Map.of`, `Files.readString`, `Instant`.

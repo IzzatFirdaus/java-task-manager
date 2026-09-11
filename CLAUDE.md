@@ -13,9 +13,15 @@ $files = Get-ChildItem -Recurse -Filter *.java src | Resolve-Path -Relative
 javac -d bin -Xlint:all $files
 ```
 
-### Run
+### Run (CLI mode)
 ```powershell
 java -cp bin App
+```
+
+### Run (Web mode)
+```powershell
+java -cp bin App --web
+java -cp bin App --web --verbose
 ```
 
 ### Run tests (JUnit 5 console launcher)
@@ -72,15 +78,17 @@ window (`Developer: Reload Window`) so it re-indexes against the current on-disk
 ```
 java-task-manager/
 ├── src/
-│   ├── App.java                      # entry
+│   ├── App.java                      # entry (CLI or --web)
+│   ├── api/                          # TaskHttpServer: REST API via com.sun.net.httpserver
 │   ├── cli/                          # REPL (+ CommandLineInterfaceTest)
 │   ├── exception/                    # domain errors
 │   ├── model/                        # Task, Priority (+ tests)
 │   ├── persistence/                  # repository (+ tests)
 │   ├── service/                      # TaskManager (+ TaskManagerTest)
-│   └── util/                         # I/O helpers
+│   └── util/                         # I/O helpers + JsonUtils
 ├── data/                             # runtime JSON
 ├── lib/                              # JUnit 5 console launcher (gitignored)
+├── public/                           # SPA frontend (index.html, styles.css, app.js)
 ├── README.md
 ├── PRD.md
 ├── ARCHITECTURE.md

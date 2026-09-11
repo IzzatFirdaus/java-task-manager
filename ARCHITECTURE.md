@@ -5,15 +5,18 @@
 ## 1. Tech Stack
 - **Language:** Java SE 17. Records, sealed types, switch expressions, `List.of`, `Files.readString`, `Instant` are all fair game.
 - **Build:** Plain `javac` → `bin/`. No Maven, no Gradle.
-- **Runtime deps:** None. The shipped app loads only `java.*`.
+- **Runtime deps:** None. The shipped app loads only `java.*` and `com.sun.net.httpserver.*` (JDK built-in).
 - **Test deps:** JUnit 5 (console launcher) lives in `lib/`. Tests are co-located with production code under `src/` mirroring each package (e.g. `service/TaskManagerTest.java`); they are not on the runtime classpath.
 - **Storage:** JSON file at `data/tasks.json`. Hand-rolled serialization to honor NF1.
 - **Encoding:** UTF-8 source; LF or CRLF line endings tolerated.
+- **Frontend:** Vanilla HTML/CSS/JS in `public/` — no frameworks, no build step.
 
 ## 2. Package / Module Layout
 ```
 src/
 ├── App.java                       # entry point, wires CLI + service + repository
+├── api/
+│   └── TaskHttpServer.java        # HTTP API (com.sun.net.httpserver), REST handlers
 ├── cli/
 │   ├── Command.java               # enum of supported verbs
 │   └── CommandLineInterface.java  # REPL: stdin -> dispatch -> stdout
@@ -32,13 +35,19 @@ src/
 └── util/
     ├── ConsolePrinter.java        # formatted output
     ├── IdGenerator.java           # monotonic id source
-    └── InputReader.java           # stdin wrapper
+    ├── InputReader.java           # stdin wrapper
+    └── JsonUtils.java             # lightweight JSON serialization (shared by api/ and persistence/)
 ├── (mirror packages)              # JUnit 5 tests, e.g. service/TaskManagerTest.java
 data/
 └── tasks.json                     # runtime store; .gitignored
+public/
+├── index.html                     # SPA dashboard
+├── styles.css                     # modern CSS (Flexbox/Grid)
+└── app.js                         # Vanilla ES6 fetch-based API client
 ```
 
 Layering rule: `model` ← `service` ← `cli`. `persistence` and `util` are siblings to `service`; `cli` may depend on all.
+`api` depends on `service` and `model`. `public/` depends only on the HTTP API wire protocol.
 
 ## 3. Data Model
 
@@ -160,13 +169,61 @@ javac -d bin -Xlint:all $files
 java -cp bin App
 ```
 
+### Web mode
+```powershell
+java -cp bin App --web
+java -cp bin App --web --verbose   # with request logging
+```
+Opens the API on `http://localhost:8080`. The frontend dashboard is served from `public/` automatically.
+
 ## 10. Testing Strategy
 - **Unit:** `TaskTest`, `TaskManagerTest`, `PriorityTest`, `FileTaskRepositoryTest` (temp dir).
 - **Integration:** CLI test driving stdin via `System.setIn(BufferedReader)` and asserting on stdout.
 - **Coverage target:** `service` and `persistence` ≥ 80% lines.
 
-## 11. Open Questions / Out of Scope (v1)
+## 11. HTTP API Layer (`api/`)
+
+### 11.1 `api.TaskHttpServer`
+Uses `com.sun.net.httpserver.HttpServer` (JDK built-in) bound to port 8080.
+
+**Responsibilities:**
+- Parse HTTP method and path to route to the correct handler.
+- Deserialize JSON request bodies via `util.JsonUtils.parseObject`.
+- Serialize `Task` responses via `util.JsonUtils.toJson`.
+- Map `TaskException` to appropriate HTTP status codes (400, 404).
+- Include CORS headers on every response.
+- Serve static frontend files from `public/` on non-API paths.
+
+**REST endpoints:**
+
+| Method   | Path                           | Description                | Query params                    |
+|----------|--------------------------------|----------------------------|----------------------------------|
+| `GET`    | `/api/tasks`                   | List tasks                 | `status=pending\|all\|completed`, `sort=id\|priority\|createdAt` |
+| `POST`   | `/api/tasks`                   | Create task                | —                                |
+| `GET`    | `/api/tasks/{id}`              | Find task by id            | —                                |
+| `PUT`    | `/api/tasks/{id}`              | Update task fields         | —                                |
+| `POST`   | `/api/tasks/{id}/complete`     | Mark task complete         | —                                |
+| `POST`   | `/api/tasks/{id}/uncomplete`   | Mark task pending          | —                                |
+| `DELETE` | `/api/tasks/{id}`              | Delete task                | —                                |
+
+**Error responses:** Always `{"error": "<message>"}` with HTTP 400 (bad request) or 404 (not found).
+
+### 11.2 `util.JsonUtils`
+Hand-rolled JSON utility shared by the API layer. Provides:
+- `toJson(Task)` / `toJson(List<Task>)` — serialize tasks to JSON.
+- `toError(String)` / `toMessage(String)` / `toSuccess(String, String)` — standard payload shapes.
+- `parseObject(String)` — parse a flat JSON object into a `Map<String,String>`.
+
+### 11.3 Frontend (`public/`)
+Vanilla single-page application with no build step:
+- **`index.html`** — responsive dashboard layout: creation form, filter bar, task list grid.
+- **`styles.css`** — modern CSS with priority badges (green LOW, amber MEDIUM, red HIGH).
+- **`app.js`** — ES6 module-less JavaScript using `async/await fetch()` to the `/api/tasks` endpoints.
+
+## 12. Open Questions / Out of Scope (v1)
 - Multi-user file locking.
 - Recurring tasks, due dates, tags.
-- Network sync, web UI.
+- WebSocket push for real-time updates across multiple browser tabs.
+- Authentication / authorization for the HTTP API.
 - Configurable storage path.
+- Configurable HTTP port.
